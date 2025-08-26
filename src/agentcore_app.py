@@ -286,7 +286,15 @@ def enhanced_financial_analysis_entrypoint(request: Dict[str, Any]) -> Dict[str,
         }
         
         # Process query with observability
-        result = asyncio.run(agent.process_query(sanitized_prompt, context))
+}
+        
+        # Process query with observability
+        # import asyncio  # Used for running asynchronous coroutines in a synchronous context
+        loop = asyncio.get_event_loop()
+        result = loop.run_until_complete(agent.process_query(sanitized_prompt, context))
+        
+        end_time = datetime.now()
+        execution_time = (end_time - start_time).total_seconds() * 1000
         
         end_time = datetime.now()
         execution_time = (end_time - start_time).total_seconds() * 1000
