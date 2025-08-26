@@ -162,7 +162,26 @@ async def demo_single_agent_observability():
                 "query_number": i,
                 "response_length": len(result['analysis'])
             }
-        )
+print(f"📊 Result: {result['analysis'][:100]}...")
+        
+        # Record custom metrics
+        try:
+            agent.observability_service.record_agent_metrics(
+                agent_name=agent.name,
+                operation="financial_analysis",
+                duration_ms=duration * 1000,
+                success=True,
+                attributes={
+                    "query_type": "financial",
+                    "query_number": i,
+                    "response_length": len(result['analysis'])
+                }
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to record metrics: {e}")
+
+
+async def main():
 
 
 async def main():
