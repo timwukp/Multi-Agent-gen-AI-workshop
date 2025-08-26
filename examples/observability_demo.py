@@ -99,6 +99,20 @@ class EnhancedFinancialAgent:
             span.set_attribute("response_length", len(response))
             span.set_attribute("citations_included", 3)
             
+attributes={"output_format": "structured", "include_citations": True}
+        ) as span:
+            # Simulate response generation
+            await asyncio.sleep(0.05)
+            
+            # Import html module for escaping
+            # html.escape() is used to sanitize user input and prevent XSS attacks
+            import html
+            
+            response = f"Financial analysis for: {html.escape(query)}. Based on retrieved documents, the analysis shows positive trends."
+            
+            span.set_attribute("response_length", len(response))
+            span.set_attribute("citations_included", 3)
+            
             return response
 
 
