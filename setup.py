@@ -10,7 +10,10 @@ def run_command(command: str, description: str) -> bool:
     """Run a shell command and return success status."""
     print(f"\n🔄 {description}...")
     try:
-        result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+        # Security fix: Use shell=False and split command into list to prevent command injection
+        import shlex
+        command_list = shlex.split(command)
+        result = subprocess.run(command_list, check=True, capture_output=True, text=True)
         print(f"✅ {description} completed successfully")
         if result.stdout:
             print(f"Output: {result.stdout}")
