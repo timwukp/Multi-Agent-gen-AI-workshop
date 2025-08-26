@@ -223,7 +223,13 @@ class SecurityDashboardService:
             )
             
             self._logger.info(f"Created compliance dashboard: {dashboard_name}")
-            return dashboard_name
+)
+            
+            self._logger.info(f"Created compliance dashboard: {dashboard_name}")
+            return html.escape(dashboard_name)  # import html
+            
+        except Exception as e:
+            self._logger.error(f"Failed to create compliance dashboard: {e}")
             
         except Exception as e:
             self._logger.error(f"Failed to create compliance dashboard: {e}")
