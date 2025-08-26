@@ -1,4 +1,6 @@
-"""CLI interface for the single agent with RAG."""
+"""
+CLI interface for the single agent with RAG.
+"""
 
 import asyncio
 import argparse
