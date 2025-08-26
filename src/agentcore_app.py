@@ -12,10 +12,17 @@ from bedrock_agentcore import BedrockAgentCoreApp
 
 USING_MOCK_AGENTCORE = False
 
-from src.agents.single_agent import create_financial_agent, FinancialAnalysisAgent
+from src.agents.single_agent import create_financial_agent, FinancialAnalysisAgent, create_enhanced_financial_analysis_agent
 from src.agents.finance_graph import create_finance_graph, ResilientFinanceGraph
-from src.memory.memory_graph import create_memory_enabled_graph, MemoryEnabledGraph
-from src.memory.memory_client import create_memory_client, MemoryEnabledClient
+from src.agents.enhanced_agents import EnhancedStrandsAgent
+from src.observability.service import get_observability_service
+try:
+    from src.memory.memory_graph import create_memory_enabled_graph, MemoryEnabledGraph
+    from src.memory.memory_client import create_memory_client, MemoryEnabledClient
+    MEMORY_AVAILABLE = True
+except ImportError:
+    MEMORY_AVAILABLE = False
+    logger.warning("Memory modules not available")
 from config import config
 
 # Configure logging
@@ -24,9 +31,11 @@ logger = logging.getLogger(__name__)
 
 # Global agent instances for reuse
 _agent_instance: Optional[FinancialAnalysisAgent] = None
+_enhanced_agent_instance: Optional[EnhancedStrandsAgent] = None
 _multi_agent_graph: Optional[ResilientFinanceGraph] = None
-_memory_enabled_graph: Optional[MemoryEnabledGraph] = None
-_memory_client: Optional[MemoryEnabledClient] = None
+_observability_service = None
+_memory_enabled_graph = None
+_memory_client = None
 
 # Security helper functions
 def _sanitize_prompt(prompt: str) -> str:
@@ -165,6 +174,24 @@ def get_agent_instance() -> FinancialAnalysisAgent:
     return _agent_instance
 
 
+def get_enhanced_agent_instance() -> EnhancedStrandsAgent:
+    """Get or create the global enhanced agent instance with observability."""
+    global _enhanced_agent_instance
+    if _enhanced_agent_instance is None:
+        _enhanced_agent_instance = create_enhanced_financial_analysis_agent()
+        logger.info("Created new EnhancedStrandsAgent instance with observability")
+    return _enhanced_agent_instance
+
+
+def get_observability_service_instance():
+    """Get or create the global observability service instance."""
+    global _observability_service
+    if _observability_service is None:
+        _observability_service = get_observability_service()
+        logger.info("Created new ObservabilityService instance")
+    return _observability_service
+
+
 def get_multi_agent_graph() -> ResilientFinanceGraph:
     """Get or create the global multi-agent graph instance."""
     global _multi_agent_graph
@@ -174,18 +201,22 @@ def get_multi_agent_graph() -> ResilientFinanceGraph:
     return _multi_agent_graph
 
 
-def get_memory_enabled_graph() -> MemoryEnabledGraph:
+def get_memory_enabled_graph():
     """Get or create the global memory-enabled graph instance."""
     global _memory_enabled_graph
+    if not MEMORY_AVAILABLE:
+        raise RuntimeError("Memory modules not available")
     if _memory_enabled_graph is None:
         _memory_enabled_graph = create_memory_enabled_graph()
         logger.info("Created new MemoryEnabledGraph instance")
     return _memory_enabled_graph
 
 
-def get_memory_client() -> MemoryEnabledClient:
+def get_memory_client():
     """Get or create the global memory client instance."""
     global _memory_client
+    if not MEMORY_AVAILABLE:
+        raise RuntimeError("Memory modules not available")
     if _memory_client is None:
         _memory_client = create_memory_client()
         logger.info("Created new MemoryEnabledClient instance")
@@ -194,8 +225,8 @@ def get_memory_client() -> MemoryEnabledClient:
 
 # AgentCore Entrypoints
 @app.entrypoint
-def financial_analysis_entrypoint(request: Dict[str, Any]) -> Dict[str, Any]:
-    """Main entrypoint for financial analysis requests.
+def enhanced_financial_analysis_entrypoint(request: Dict[str, Any]) -> Dict[str, Any]:
+    """Enhanced entrypoint for financial analysis requests with observability.
     
     Expected request format:
     {
@@ -244,30 +275,45 @@ def financial_analysis_entrypoint(request: Dict[str, Any]) -> Dict[str, Any]:
                 "timestamp": start_time.isoformat()
             }
         
-        # Get agent and process query
-        agent = get_agent_instance()
-        response = agent.query(sanitized_prompt)
+        # Get enhanced agent and process query
+        agent = get_enhanced_agent_instance()
+        
+        # Build context
+        context = {
+            "user_id": user_id,
+            "session_id": request.get("session_id"),
+            "request_timestamp": start_time.isoformat()
+        }
+        
+        # Process query with observability
+        result = asyncio.run(agent.process_query(sanitized_prompt, context))
         
         end_time = datetime.now()
         execution_time = (end_time - start_time).total_seconds() * 1000
         
         return {
             "status": "success",
-            "response": response,
+            "response": result.get("response", ""),
             "streaming_supported": True,
             "execution_time_ms": execution_time,
+            "agent_processing_time_ms": result.get("processing_time_ms", 0),
             "timestamp": end_time.isoformat(),
             "user_id": user_id,
             "session_id": request.get("session_id"),
             "agent_info": {
-                "name": "FinancialAnalysisAgent",
+                "name": result.get("agent_name", "EnhancedFinancialAnalysisAgent"),
                 "model": config.bedrock_model_id,
-                "knowledge_base": config.bedrock_knowledge_base_id
+                "knowledge_base": config.bedrock_knowledge_base_id,
+                "observability_enabled": True
+            },
+            "observability": {
+                "traced": True,
+                "metrics_recorded": True
             }
         }
         
     except Exception as e:
-        logger.error(f"Error in financial_analysis_entrypoint: {e}")
+        logger.error(f"Error in enhanced_financial_analysis_entrypoint: {e}")
         end_time = datetime.now()
         execution_time = (end_time - start_time).total_seconds() * 1000
         
@@ -275,7 +321,8 @@ def financial_analysis_entrypoint(request: Dict[str, Any]) -> Dict[str, Any]:
             "status": "error",
             "error": _sanitize_error_message(e),
             "execution_time_ms": execution_time,
-            "timestamp": end_time.isoformat()
+            "timestamp": end_time.isoformat(),
+            "observability_enabled": True
         }
 
 
@@ -308,404 +355,6 @@ def health_check() -> str:
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return "UNHEALTHY"
-
-
-# Async Task Processing
-@app.async_task
-async def process_financial_analysis_async(query_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Process financial analysis query asynchronously."""
-    start_time = datetime.now()
-    
-    try:
-        prompt = query_data.get("prompt", "").strip()
-        user_id = query_data.get("user_id")
-        session_id = query_data.get("session_id")
-        streaming = query_data.get("streaming", False)
-        
-        # Input validation
-        if not prompt:
-            return {
-                "status": "error",
-                "error": "Prompt is required",
-                "timestamp": start_time.isoformat()
-            }
-        
-        # Sanitize prompt
-        sanitized_prompt = _sanitize_prompt(prompt)
-        
-        # Get agent and process query
-        agent = get_agent_instance()
-        
-        if streaming:
-            # Collect streaming response
-            response_chunks = []
-            async for chunk in agent.query_stream(sanitized_prompt):
-                response_chunks.append(chunk)
-            response = "".join(response_chunks)
-        else:
-            response = await agent.query_async(sanitized_prompt)
-        
-        end_time = datetime.now()
-        execution_time = (end_time - start_time).total_seconds() * 1000
-        
-        return {
-            "status": "success",
-            "response": response,
-            "execution_time_ms": execution_time,
-            "timestamp": end_time.isoformat(),
-            "user_id": user_id,
-            "session_id": session_id,
-            "streaming_used": streaming
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in async task: {e}")
-        end_time = datetime.now()
-        execution_time = (end_time - start_time).total_seconds() * 1000
-        
-        return {
-            "status": "error",
-            "error": _sanitize_error_message(e),
-            "execution_time_ms": execution_time,
-            "timestamp": end_time.isoformat()
-        }
-
-
-@app.async_task
-async def batch_financial_analysis(batch_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Process multiple financial analysis queries in batch."""
-    start_time = datetime.now()
-    
-    try:
-        queries = batch_data.get("queries", [])
-        if not queries or not isinstance(queries, list):
-            return {
-                "status": "error",
-                "error": "Queries list is required",
-                "timestamp": start_time.isoformat()
-            }
-        
-        # Limit batch size
-        if len(queries) > 10:
-            return {
-                "status": "error",
-                "error": "Batch size limited to 10 queries",
-                "timestamp": start_time.isoformat()
-            }
-        
-        # Process queries
-        agent = get_agent_instance()
-        results = []
-        
-        for i, query_data in enumerate(queries):
-            try:
-                prompt = query_data.get("prompt", "").strip()
-                if not prompt:
-                    results.append({
-                        "query_index": i,
-                        "status": "error",
-                        "error": "Empty prompt"
-                    })
-                    continue
-                
-                # Sanitize and process
-                sanitized_prompt = _sanitize_prompt(prompt)
-                response = await agent.query_async(sanitized_prompt)
-                
-                results.append({
-                    "query_index": i,
-                    "status": "success",
-                    "response": response,
-                    "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt
-                })
-                
-            except Exception as e:
-                logger.error(f"Error processing query {i}: {e}")
-                results.append({
-                    "query_index": i,
-                    "status": "error",
-                    "error": _sanitize_error_message(e)
-                })
-        
-        end_time = datetime.now()
-        execution_time = (end_time - start_time).total_seconds() * 1000
-        
-        return {
-            "status": "success",
-            "results": results,
-            "total_queries": len(queries),
-            "successful_queries": len([r for r in results if r["status"] == "success"]),
-            "execution_time_ms": execution_time,
-            "timestamp": end_time.isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in batch processing: {e}")
-        end_time = datetime.now()
-        execution_time = (end_time - start_time).total_seconds() * 1000
-        
-        return {
-            "status": "error",
-            "error": _sanitize_error_message(e),
-            "execution_time_ms": execution_time,
-            "timestamp": end_time.isoformat()
-        }
-
-
-# Multi-Agent System Entrypoints
-@app.entrypoint
-def multi_agent_financial_analysis(request: Dict[str, Any]) -> Dict[str, Any]:
-    """Multi-agent financial analysis entrypoint."""
-    start_time = datetime.now()
-    
-    try:
-        # Input validation
-        prompt = request.get("prompt", "").strip()
-        if not prompt:
-            return {
-                "status": "error",
-                "error": "Prompt is required",
-                "timestamp": start_time.isoformat()
-            }
-        
-        # Sanitize prompt
-        sanitized_prompt = _sanitize_prompt(prompt)
-        
-        # Validate user_id if provided
-        user_id = request.get("user_id")
-        if user_id and not _is_valid_user_id(user_id):
-            return {
-                "status": "error",
-                "error": "Invalid user_id format",
-                "timestamp": start_time.isoformat()
-            }
-        
-        # Get multi-agent graph and process query
-        graph = get_multi_agent_graph()
-        
-        # Create query object
-        from src.agents.multi_agent_system import FinancialQuery
-        query = FinancialQuery(
-            query=sanitized_prompt,
-            user_id=user_id,
-            session_id=request.get("session_id")
-        )
-        
-        # Process with multi-agent system
-        report = asyncio.run(graph.process_financial_query(query))
-        
-        end_time = datetime.now()
-        execution_time = (end_time - start_time).total_seconds() * 1000
-        
-        return {
-            "status": "success",
-            "report": {
-                "query": report.query.__dict__,
-                "routing_decision": report.routing_decision,
-                "agent_results": [result.__dict__ for result in report.agent_results],
-                "final_summary": report.final_summary,
-                "agents_involved": report.agents_involved,
-                "total_execution_time_ms": report.total_execution_time_ms
-            },
-            "execution_time_ms": execution_time,
-            "timestamp": end_time.isoformat(),
-            "mode": "multi_agent"
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in multi_agent_financial_analysis: {e}")
-        end_time = datetime.now()
-        execution_time = (end_time - start_time).total_seconds() * 1000
-        
-        return {
-            "status": "error",
-            "error": _sanitize_error_message(e),
-            "execution_time_ms": execution_time,
-            "timestamp": end_time.isoformat()
-        }
-
-
-# Memory-Enhanced Entrypoints
-@app.entrypoint
-def memory_enabled_financial_analysis(request: Dict[str, Any]) -> Dict[str, Any]:
-    """Memory-enhanced financial analysis entrypoint."""
-    start_time = datetime.now()
-    
-    try:
-        # Input validation
-        prompt = request.get("prompt", "").strip()
-        if not prompt:
-            return {
-                "status": "error",
-                "error": "Prompt is required",
-                "timestamp": start_time.isoformat()
-            }
-        
-        user_id = request.get("user_id")
-        session_id = request.get("session_id")
-        
-        if not user_id:
-            return {
-                "status": "error",
-                "error": "user_id is required for memory-enabled analysis",
-                "timestamp": start_time.isoformat()
-            }
-        
-        # Validate user_id
-        if not _is_valid_user_id(user_id):
-            return {
-                "status": "error",
-                "error": "Invalid user_id format",
-                "timestamp": start_time.isoformat()
-            }
-        
-        # Sanitize prompt
-        sanitized_prompt = _sanitize_prompt(prompt)
-        
-        # Get memory-enabled graph and process query
-        graph = get_memory_enabled_graph()
-        
-        # Process with memory context
-        report = asyncio.run(graph.process_financial_query(
-            query=sanitized_prompt,
-            user_id=user_id,
-            session_id=session_id
-        ))
-        
-        end_time = datetime.now()
-        execution_time = (end_time - start_time).total_seconds() * 1000
-        
-        return {
-            "status": "success",
-            "report": {
-                "query": report.query.__dict__,
-                "routing_decision": report.routing_decision,
-                "agent_results": [result.__dict__ for result in report.agent_results],
-                "final_summary": report.final_summary,
-                "agents_involved": report.agents_involved,
-                "total_execution_time_ms": report.total_execution_time_ms,
-                "memory_context_used": report.routing_decision.get("memory_context_used", False)
-            },
-            "execution_time_ms": execution_time,
-            "timestamp": end_time.isoformat(),
-            "mode": "memory_enabled"
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in memory_enabled_financial_analysis: {e}")
-        end_time = datetime.now()
-        execution_time = (end_time - start_time).total_seconds() * 1000
-        
-        return {
-            "status": "error",
-            "error": _sanitize_error_message(e),
-            "execution_time_ms": execution_time,
-            "timestamp": end_time.isoformat()
-        }
-
-
-@app.entrypoint
-def memory_management(request: Dict[str, Any]) -> Dict[str, Any]:
-    """Memory management operations entrypoint."""
-    start_time = datetime.now()
-    
-    try:
-        operation = request.get("operation")
-        if not operation:
-            return {
-                "status": "error",
-                "error": "Operation is required",
-                "timestamp": start_time.isoformat()
-            }
-        
-        user_id = request.get("user_id")
-        if not user_id or not _is_valid_user_id(user_id):
-            return {
-                "status": "error",
-                "error": "Valid user_id is required",
-                "timestamp": start_time.isoformat()
-            }
-        
-        # Get memory client
-        memory_client = get_memory_client()
-        
-        if operation == "get_profile":
-            # Get user profile from memory
-            profile = asyncio.run(memory_client.get_user_profile(user_id))
-            return {
-                "status": "success",
-                "profile": profile,
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        elif operation == "save_preference":
-            preference_key = request.get("preference_key")
-            preference_value = request.get("preference_value")
-            
-            if not preference_key or preference_value is None:
-                return {
-                    "status": "error",
-                    "error": "preference_key and preference_value are required",
-                    "timestamp": start_time.isoformat()
-                }
-            
-            # Save user preference
-            asyncio.run(memory_client.save_user_preference(
-                user_id=user_id,
-                preference_key=preference_key,
-                preference_value=preference_value
-            ))
-            
-            return {
-                "status": "success",
-                "message": "Preference saved successfully",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        elif operation == "get_context":
-            query = request.get("query", "")
-            session_id = request.get("session_id")
-            
-            # Retrieve memory context
-            context = asyncio.run(memory_client.retrieve_context(
-                user_id=user_id,
-                session_id=session_id,
-                query=query
-            ))
-            
-            return {
-                "status": "success",
-                "context": context,
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        elif operation == "get_status":
-            # Get memory service status
-            status = asyncio.run(memory_client.get_memory_status())
-            return {
-                "status": "success",
-                "memory_status": status,
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        else:
-            return {
-                "status": "error",
-                "error": f"Unknown operation: {operation}",
-                "timestamp": start_time.isoformat()
-            }
-        
-    except Exception as e:
-        logger.error(f"Error in memory_management: {e}")
-        end_time = datetime.now()
-        execution_time = (end_time - start_time).total_seconds() * 1000
-        
-        return {
-            "status": "error",
-            "error": _sanitize_error_message(e),
-            "execution_time_ms": execution_time,
-            "timestamp": end_time.isoformat()
-        }
 
 
 # Export the app for deployment
