@@ -1,4 +1,6 @@
-"""Verify AWS Bedrock Workshop setup and configuration."""
+"""
+Verify AWS Bedrock Workshop setup and configuration.
+"""
 
 import boto3
 import sys

@@ -1,9 +1,14 @@
-"""Configuration management for AWS Bedrock Workshop."""
+"""
+Configuration management for AWS Bedrock Workshop.
+"""
 
 import os
 from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+# Import observability configuration
+from src.observability.config import ObservabilityConfig, create_observability_config
 
 
 class WorkshopConfig(BaseSettings):
@@ -31,5 +36,6 @@ class WorkshopConfig(BaseSettings):
         env_file_encoding = "utf-8"
 
 
-# Global configuration instance
+# Global configuration instances
 config = WorkshopConfig()
+observability_config = create_observability_config()
