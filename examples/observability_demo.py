@@ -29,7 +29,17 @@ class EnhancedFinancialAgent:
     
     def __init__(self, name: str = "FinancialAnalysisAgent"):
         self.name = name
-        self.observability_service = get_observability_service()
+def __init__(self, name: str = "FinancialAnalysisAgent"):
+        self.name = name
+        try:
+            self.observability_service = get_observability_service()
+            print(f"✅ {self.name} initialized with observability")
+        except Exception as e:
+            print(f"⚠️ Failed to initialize observability service: {e}")
+            self.observability_service = None
+    
+    @trace_operation("financial_analysis")
+    async def analyze_financial_data(self, query: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         print(f"✅ {self.name} initialized with observability")
     
     @trace_operation("financial_analysis")
