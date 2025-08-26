@@ -151,7 +151,110 @@ class SecurityDashboardService:
             )
             
             self._logger.info(f"Created security overview dashboard: {dashboard_name}")
-            return dashboard_name
+def create_security_overview_dashboard(self) -> str:
+        """
+        Create a comprehensive security overview dashboard.
+        
+        Returns:
+            str: Dashboard name
+        """
+        # Import html module for escaping
+        # html.escape() is used to sanitize untrusted input before returning
+        import html
+
+        dashboard_name = f"BedrockWorkshop-Security-Overview-{self.config.environment}"
+        
+        dashboard_body = {
+            "widgets": [
+                # Security Events Overview
+                {
+                    "type": "metric",
+                    "x": 0, "y": 0, "width": 12, "height": 6,
+                    "properties": {
+                        "metrics": [
+                            [self.config.metrics.namespace, "SecurityEvents", "EventType", "authentication_success"],
+                            [".", ".", ".", "authentication_failure"],
+                            [".", ".", ".", "authorization_success"],
+                            [".", ".", ".", "authorization_failure"],
+                            [".", ".", ".", "data_access"],
+                            [".", ".", ".", "sensitive_data_access"]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": False,
+                        "region": self.config.aws_region,
+                        "title": "Security Events by Type",
+                        "period": 300,
+                        "stat": "Sum"
+                    }
+                },
+                
+                # Security Levels Distribution
+                {
+                    "type": "metric",
+                    "x": 12, "y": 0, "width": 12, "height": 6,
+                    "properties": {
+                        "metrics": [
+                            [self.config.metrics.namespace, "SecurityEvents", "SecurityLevel", "low"],
+                            [".", ".", ".", "medium"],
+                            [".", ".", ".", "high"],
+                            [".", ".", ".", "critical"]
+                        ],
+                        "view": "pie",
+                        "region": self.config.aws_region,
+                        "title": "Security Events by Severity Level",
+                        "period": 3600,
+                        "stat": "Sum"
+                    }
+                },
+                
+                # Authentication Metrics
+                {
+                    "type": "metric",
+                    "x": 0, "y": 6, "width": 8, "height": 6,
+                    "properties": {
+                        "metrics": [
+                            [self.config.metrics.namespace, "SecurityEvents", "EventType", "authentication_success"],
+                            [".", ".", ".", "authentication_failure"]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": True,
+                        "region": self.config.aws_region,
+                        "title": "Authentication Success vs Failure",
+                        "period": 300,
+                        "stat": "Sum"
+                    }
+                },
+                
+                # Security Logs Query
+                {
+                    "type": "log",
+                    "x": 0, "y": 12, "width": 24, "height": 6,
+                    "properties": {
+                        "query": f"SOURCE '/aws/bedrock-workshop/security/{self.config.environment}'
+| fields @timestamp, log_type, data.event_type, data.security_level, data.user_id, data.resource
+| filter log_type = \"SecurityEvent\"
+| sort @timestamp desc
+| limit 100",
+                        "region": self.config.aws_region,
+                        "title": "Recent Security Events",
+                        "view": "table"
+                    }
+                }
+            ]
+        }
+        
+        try:
+            self._cloudwatch_client.put_dashboard(
+                DashboardName=dashboard_name,
+                DashboardBody=json.dumps(dashboard_body)
+            )
+            
+            self._logger.info(f"Created security overview dashboard: {dashboard_name}")
+            return html.escape(dashboard_name)
+            
+        except Exception as e:
+            self._logger.error(f"Failed to create security overview dashboard: {e}")
+            raise
             
         except Exception as e:
             self._logger.error(f"Failed to create security overview dashboard: {e}")
