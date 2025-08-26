@@ -184,7 +184,26 @@ class SecurityMonitoringDemo:
             source_ip="192.168.1.10",
             compliance_frameworks=[ComplianceFramework.SOC2, ComplianceFramework.ISO27001]
         )
-        print(f"✓ Configuration change audit trail created: {config_audit_id}")
+"require_special_chars": True
+                }
+            },
+            source_ip="192.168.1.10",
+            compliance_frameworks=[ComplianceFramework.SOC2, ComplianceFramework.ISO27001]
+        )
+        # import logging  # For secure logging of sensitive information
+        logging.info(f"✓ Configuration change audit trail created: {self.mask_sensitive_data(config_audit_id)}")
+        
+        # User privilege change audit
+        privilege_audit_id = self.security_monitor.create_audit_trail(
+            user_id="admin@company.com",
+            action="privilege_escalation",
+            resource="/users/alice@company.com",
+            resource_type="user",
+            old_value={"role": "analyst", "permissions": ["read_data"]},
+            new_value={"role": "senior_analyst", "permissions": ["read_data", "export_data"]},
+            compliance_frameworks=[ComplianceFramework.SOC2]
+        )
+        logging.info(f"✓ Privilege change audit trail created: {self.mask_sensitive_data(privilege_audit_id)}")
         
         # User privilege change audit
         privilege_audit_id = self.security_monitor.create_audit_trail(
