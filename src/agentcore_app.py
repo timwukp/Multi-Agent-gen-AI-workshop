@@ -216,7 +216,26 @@ def get_memory_client():
     """Get or create the global memory client instance."""
     global _memory_client
     if not MEMORY_AVAILABLE:
-        raise RuntimeError("Memory modules not available")
+def get_memory_enabled_graph():
+    """Get or create the global memory-enabled graph instance."""
+    global _memory_enabled_graph
+    if not MEMORY_AVAILABLE:
+        raise RuntimeError("Memory modules not available. Please install memory dependencies or check AGENTCORE_MEMORY_ROLE_ARN configuration.")
+    if _memory_enabled_graph is None:
+        _memory_enabled_graph = create_memory_enabled_graph()
+        logger.info("Created new MemoryEnabledGraph instance")
+    return _memory_enabled_graph
+
+
+def get_memory_client():
+    """Get or create the global memory client instance."""
+    global _memory_client
+    if not MEMORY_AVAILABLE:
+        raise RuntimeError("Memory modules not available. Please install memory dependencies or check AGENTCORE_MEMORY_ROLE_ARN configuration.")
+    if _memory_client is None:
+        _memory_client = create_memory_client()
+        logger.info("Created new MemoryEnabledClient instance")
+    return _memory_client
     if _memory_client is None:
         _memory_client = create_memory_client()
         logger.info("Created new MemoryEnabledClient instance")
