@@ -1,4 +1,6 @@
-"""Configuration management for AWS Bedrock Workshop."""
+"""
+Configuration management for AWS Bedrock Workshop.
+"""
 
 import os
 from typing import Optional

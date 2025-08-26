@@ -1,4 +1,6 @@
-"""Setup script for AWS Bedrock Workshop environment."""
+"""
+Setup script for AWS Bedrock Workshop environment.
+"""
 
 import subprocess
 import sys
