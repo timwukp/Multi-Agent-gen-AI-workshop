@@ -266,7 +266,14 @@ class SecurityMonitor:
     def _generate_event_id(self) -> str:
         """Generate a unique event ID."""
         timestamp = datetime.now(timezone.utc).isoformat()
-        unique_string = f"{timestamp}-{id(self)}"
+def _generate_event_id(self) -> str:
+        """Generate a unique event ID."""
+        # import secrets
+        timestamp = datetime.now(timezone.utc).isoformat()
+        unique_string = f"{timestamp}-{secrets.token_hex(8)}"
+        return hashlib.sha256(unique_string.encode()).hexdigest()[:16]
+    
+    def log_security_event(
         return hashlib.sha256(unique_string.encode()).hexdigest()[:16]
     
     def log_security_event(
