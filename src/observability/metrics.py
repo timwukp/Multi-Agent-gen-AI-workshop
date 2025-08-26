@@ -145,7 +145,11 @@ class MetricsCollector:
             self._logger.debug(f"Recorded {len(metric_points)} agent metrics for {agent_name}")
             
         except Exception as e:
-            self._logger.error(f"Failed to record agent metrics for {agent_name}: {e}")
+self._logger.debug(f"Recorded {len(metric_points)} agent metrics for {agent_name}")
+            
+        except Exception as e:
+            # import html
+            self._logger.error(f"Failed to record agent metrics for {html.escape(agent_name)}: {html.escape(str(e))}")
     
     def _sanitize_dimension_value(self, value: str) -> str:
         """
