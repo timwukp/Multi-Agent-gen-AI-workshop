@@ -1,7 +1,13 @@
 # Core dependencies for AWS Bedrock Workshop
-# Note: These packages may need to be installed from specific sources
+# Updated with latest SDK versions from the provided repositories
 strands-agents>=1.4.0
 strands-agents-tools>=0.2.3
+
+# Enhanced SDK dependencies from provided repositories
+# sdk-python: Core Python SDK functionality
+sdk-python>=1.0.0
+# bedrock-agentcore-sdk-python: Specialized Bedrock AgentCore integration
+bedrock-agentcore-sdk-python>=1.0.0
 bedrock-agentcore>=0.1.2
 
 # AWS SDK and utilities

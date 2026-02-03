@@ -242,4 +242,13 @@ Key configuration options in `.env`:
    - Run `python test_security_monitoring.py` to validate security features
    - Review security thresholds and compliance framework configuration
 
+8. **Nova Model Issues** - **NEW**
+   - Verify Nova model access in AWS Console (request access if needed)
+   - Check `NOVA_*` environment variables in `.env`
+   - Run `python test_nova_agent.py` to validate Nova functionality
+   - Ensure proper IAM permissions for Nova models
+   - Verify region supports Nova models (us-west-2, us-east-1)
+   - Check enhanced SDK installation: `pip list | grep -E "(sdk-python|bedrock-agentcore|nova)"`
+   - For enhanced features not available, workshop will use fallback implementations
+
 For more help, see the troubleshooting section in each module's documentation.
